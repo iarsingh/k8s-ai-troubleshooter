@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: k8s-ai-troubleshooter
+  labels:
+    app: k8s-ai-troubleshooter
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: k8s-ai-troubleshooter
+  template:
+    metadata:
+      labels:
+        app: k8s-ai-troubleshooter
+    spec:
+      containers:
+        - name: api
+          image: k8s-ai-troubleshooter:local
+          ports:
+            - containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /v1/readyz
+              port: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: k8s-ai-troubleshooter
+spec:
+  selector:
+    app: k8s-ai-troubleshooter
+  ports:
+    - port: 80
+      targetPort: 8080
