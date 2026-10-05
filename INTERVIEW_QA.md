@@ -13,11 +13,13 @@ I would demonstrate the linked implementation or examples and distinguish that e
 ## 2. How is this repository organized?
 
 - [`src/agentx/main.py`](src/agentx/main.py): Implementation or supporting configuration.
+- [`src/agentx/ops.py`](src/agentx/ops.py): Implementation or supporting configuration.
 - [`src/agentx/agent.py`](src/agentx/agent.py): Implementation or supporting configuration.
 - [`requirements.txt`](requirements.txt): Implementation or supporting configuration.
+- [`Dockerfile`](Dockerfile): Container build/service configuration.
+- [`Makefile`](Makefile): Implementation or supporting configuration.
+- [`docker-compose.yml`](docker-compose.yml): Container build/service configuration.
 - [`tests/test_agent.py`](tests/test_agent.py): Executable checks and regression examples.
-- [`.github/workflows/ci.yml`](.github/workflows/ci.yml): GitHub Actions job definitions.
-- [`README.md`](README.md): Project explanations or operating notes.
 
 [PROJECT_ARCHITECTURE.md](PROJECT_ARCHITECTURE.md) contains the component diagram and the implementation walkthrough.
 
@@ -43,7 +45,11 @@ The implementation calls `' '.join`, `' '.join(payload.get('events') or []).lowe
 Explicit failure paths include:
 
 - `ValueError('goal is empty')` in [`src/agentx/agent.py`](src/agentx/agent.py#L6).
-- `HTTPException(422, str(exc))` in [`src/agentx/main.py`](src/agentx/main.py#L14).
+- `HTTPException(422, str(exc))` in [`src/agentx/main.py`](src/agentx/main.py#L16).
+- `HTTPException(status_code=404, detail='workspace not found')` in [`src/agentx/ops.py`](src/agentx/ops.py#L77).
+- `HTTPException(status_code=404, detail='job not found')` in [`src/agentx/ops.py`](src/agentx/ops.py#L100).
+- `HTTPException(status_code=404, detail='job not found')` in [`src/agentx/ops.py`](src/agentx/ops.py#L109).
+- `HTTPException(status_code=403, detail='production apply is disabled in this lab')` in [`src/agentx/ops.py`](src/agentx/ops.py#L113).
 
 I would test both the condition that reaches each exception and the caller that translates it. An explicit raise does not mean every malformed input or dependency failure is handled.
 
@@ -65,14 +71,20 @@ This is a concrete regression example from the repository. Its assertions establ
 
 ## 6. What HTTP interface does the code expose?
 
-- `GET /healthz` → `healthz` in [`src/agentx/main.py`](src/agentx/main.py#L6).
-- `POST /agent/run` → `post_run` in [`src/agentx/main.py`](src/agentx/main.py#L10).
+- `GET /healthz` → `healthz` in [`src/agentx/main.py`](src/agentx/main.py#L8).
+- `POST /agent/run` → `post_run` in [`src/agentx/main.py`](src/agentx/main.py#L12).
+- `GET /readyz` → `readyz` in [`src/agentx/ops.py`](src/agentx/ops.py#L44).
+- `POST /workspaces` → `create_workspace` in [`src/agentx/ops.py`](src/agentx/ops.py#L49).
+- `GET /workspaces` → `list_workspaces` in [`src/agentx/ops.py`](src/agentx/ops.py#L66).
+- `POST /workspaces/{workspace_id}/jobs` → `create_job` in [`src/agentx/ops.py`](src/agentx/ops.py#L73).
+- `GET /jobs/{job_id}` → `get_job` in [`src/agentx/ops.py`](src/agentx/ops.py#L96).
+- `POST /jobs/{job_id}/approve` → `approve_job` in [`src/agentx/ops.py`](src/agentx/ops.py#L105).
 
 These are literal decorators. Application/router prefixes, authentication, and middleware must be checked in the corresponding setup code.
 
 ## 7. Where does state live, and what happens with multiple workers?
 
-Module-level containers include `TOOLS` in [`src/agentx/agent.py`](src/agentx/agent.py).
+Module-level containers include `TOOLS` in [`src/agentx/agent.py`](src/agentx/agent.py); `_WORKSPACES`, `_JOBS`, `_AUDIT`, `_METRICS` in [`src/agentx/ops.py`](src/agentx/ops.py).
 
 These containers belong to a Python process. Inspect which are constant fixtures and which are mutated. Mutable process state needs an explicit shared-storage or synchronization strategy before multiple workers can provide consistent behavior.
 
@@ -118,3 +130,9 @@ The implementation in [`src/agentx/agent.py`](src/agentx/agent.py#L4) branches o
 - `any((w in low for w in WRITES))`
 
 A useful extension is a table-driven test that covers each condition just below, at, and above its boundary where applicable. These expressions are the current rules; changing them changes behavior and should be justified by the project’s acceptance criteria.
+
+## 13. What does the operations plane add, and where is its limit?
+
+[`src/agentx/ops.py`](src/agentx/ops.py) declares `GET /readyz`, `POST /workspaces`, `GET /workspaces`, `POST /workspaces/{workspace_id}/jobs`, `GET /jobs/{job_id}`, `POST /jobs/{job_id}/approve`, `GET /audit`, `GET /metrics`. Inspect the application’s `include_router` call for its URL prefix.
+
+Its state containers are `_WORKSPACES`, `_JOBS`, `_AUDIT`, `_METRICS`. The job-approval handler defines whether a target is accepted or refused; check that branch and the associated tests instead of treating a recorded job as a successful infrastructure apply.
