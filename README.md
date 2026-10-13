@@ -1,5 +1,12 @@
 # AI Kubernetes Troubleshooter
 
+## Overview
+
+A small agent that turns Kubernetes events, logs and metrics into a troubleshooting hypothesis. It compares those signals with a set of runbooks and uses the runbook overlap to back its guess, all behind a `POST /agent/run` endpoint. Commands such as `kubectl apply` and `kubectl delete` are refused, and cluster apply stays false until a human approves. A versioned `/v1` ops API adds workspaces, tenant isolation, job approval and audit records.
+
+- **Built with:** Python, pytest, Docker Compose, GitHub Actions
+- **Scope:** Laptop lab with tests; no hosted model is called and nothing is applied to a cluster.
+
 <!-- project-guide:start -->
 ## Project guide
 
